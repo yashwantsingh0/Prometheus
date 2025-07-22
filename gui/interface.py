@@ -67,12 +67,12 @@ class PrometheusApp(QMainWindow):
         self.resize_spin = QSpinBox()
         self.resize_spin.setRange(10, 100)
         self.resize_spin.setValue(100)
-        options_layout.addRow("Resize Percent", self.resize_spin)
+        options_layout.addRow("Resize Percent (For IMGs/PDFs)", self.resize_spin)
 
         self.dpi_spin = QSpinBox()
         self.dpi_spin.setRange(50, 300)
         self.dpi_spin.setValue(120)
-        options_layout.addRow("DPI (PDF)", self.dpi_spin)
+        options_layout.addRow("DPI (Only for PDF)", self.dpi_spin)
 
         self.options_group.setLayout(options_layout)
 
@@ -105,7 +105,7 @@ class PrometheusApp(QMainWindow):
         file_menu.addAction(exit_action)
 
         theme_menu = menubar.addMenu("Theme")
-        toggle_theme = QAction("Toggle Dark/Light", self)
+        toggle_theme = QAction("Dark/Light", self)
         toggle_theme.triggered.connect(self.toggle_theme)
         theme_menu.addAction(toggle_theme)
 
@@ -195,6 +195,7 @@ class PrometheusApp(QMainWindow):
             widget.setParent(None)
         self.refresh_preview_grid()
 
+
     def compress_all_files(self):
         if not self.preview_files:
             QMessageBox.information(self, "No files", "Please add files to compress.")
@@ -225,15 +226,24 @@ class PrometheusApp(QMainWindow):
             if not save_path:
                 continue
 
-            if path.lower().endswith((".jpg", ".jpeg", ".png")):
-                compressed = compress_image(path, output_path=save_path, quality=quality, resize_percent=resize)
-            elif path.lower().endswith(".pdf"):
-                compressed = compress_pdf(path, output_path=save_path, dpi=dpi)
+            try:
+                if path.lower().endswith((".jpg", ".jpeg", ".png")):
+                    compressed = compress_image(path, output_path=save_path, quality=quality, resize_percent=resize)
+                elif path.lower().endswith(".pdf"):
+                    compressed = compress_pdf(path, output_path=save_path, dpi=dpi)
 
-            if compressed:
-                print(f"Compressed and saved: {compressed}")
+                if compressed:
+                    print(f"Compressed and saved: {compressed}")
+                else:
+                    raise Exception("Compression returned None")
+
+            except Exception as e:
+                print(f"PDF compression failed: {e}")
+                traceback.print_exc()
+                QMessageBox.critical(self, "Compression Error", f"Failed to compress file:\n{path}\n\n{str(e)}")
 
         QMessageBox.information(self, "Done", "Compression completed.")
+
 
     def toggle_theme(self):
         self.theme = "dark" if self.theme == "light" else "light"
@@ -255,7 +265,26 @@ class PrometheusApp(QMainWindow):
             self.setStyle(QStyleFactory.create("Fusion"))
 
     def show_about(self):
-        QMessageBox.information(
-            self, "About Prometheus",
-            "Prometheus File Compressor\nDeveloped by Yashwant\nSupports JPG, PNG, PDF compression with full control."
+        text = (
+            "<b>Prometheus File Compressor</b><br>"
+            "User-driven file size optimization for Linux desktops.<br>"
+            "Built with Python 3.13, PyQt5, and the following technologies:<br><br>"
+            "<ul>"
+            "<li><b>Image Compression:</b> Pillow (resize, quality, DPI)</li>"
+            "<li><b>PDF Compression:</b> PyMuPDF (rasterize pages to images)</li>"
+            "<li><b>GUI Framework:</b> PyQt5 (cross-platform native look)</li>"
+            "<li><b>File I/O:</b> Drag & drop, batch handling</li>"
+            "<li><b>Theming:</b> Dark/Light switch with Fusion palette</li>"
+            "</ul><br><br>"
+            "<center>Crafted with ❤️ by <a href='https://yashwantsingh0.github.io'>Yashwant Singh</a></center>"
         )
+        msg = QMessageBox(self)
+        msg.setWindowTitle("About Prometheus")
+        msg.setTextFormat(Qt.TextFormat.RichText)
+        msg.setText(text)
+        msg.setStandardButtons(QMessageBox.StandardButton.Ok)
+        msg.setTextInteractionFlags(Qt.TextInteractionFlag.TextBrowserInteraction)
+        msg.setIcon(QMessageBox.Icon.Information)
+        msg.exec()
+
+
