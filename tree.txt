@@ -5,7 +5,11 @@
 ├── compression
 │   ├── image_compressor.py
 │   ├── __init__.py
-│   └── pdf_compressor.py
+│   ├── pdf_compressor.py
+│   └── __pycache__
+│       ├── image_compressor.cpython-313.pyc
+│       ├── __init__.cpython-313.pyc
+│       └── pdf_compressor.cpython-313.pyc
 ├── gui
 │   ├── __init__.py
 │   ├── interface.py
@@ -13,6 +17,9 @@
 │   │   ├── __init__.cpython-313.pyc
 │   │   └── interface.cpython-313.pyc
 │   └── theme.py
+├── header.txt
+├── LICENSE
+├── main_backup.py
 ├── main.py
 ├── README.md
 ├── requirements.txt
@@ -4146,4 +4153,4 @@
     ├── lib64 -> lib
     └── pyvenv.cfg
 
-321 directories, 3826 files
+322 directories, 3832 files

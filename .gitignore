@@ -1,5 +1,31 @@
-venv/
+# Byte-compiled / cache files
 __pycache__/
-*.pyc
-*.pyo
+*.py[cod]
+*.so
+
+# Virtual environment
+venv/
+
+# Backup or test files
+*backup.py
+tree.txt
+header.txt
+
+# OS metadata files
+.DS_Store
+Thumbs.db
+
+# PyInstaller/dist output
+build/
+dist/
+*.spec
+
+# IDE / Editor configs
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Log / runtime output
 *.log
+*.tmp
