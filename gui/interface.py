@@ -15,26 +15,33 @@
 # ──────────────────────────────────────────────────────────────
 # gui/interface.py
 
-from PyQt5.QtWidgets import (
-    QMainWindow, QWidget, QVBoxLayout, QLabel, QPushButton,
-    QFileDialog, QMenuBar, QAction, QMessageBox, QStyleFactory,
-    QApplication, QScrollArea, QGridLayout, QHBoxLayout, QSpinBox,
-    QComboBox, QGroupBox, QFormLayout, QDialog, QLineEdit, QListWidget,
-    QListWidgetItem, QProgressBar
-)
-from PyQt5.QtCore import Qt, QThread, pyqtSignal
-from PyQt5.QtGui import QIcon, QPalette, QColor, QPixmap
 import os
 import traceback
 from PIL import Image
+
+from PyQt5.QtWidgets import (
+    QApplication, QMainWindow, QWidget, QVBoxLayout, QLabel, QPushButton,
+    QFileDialog, QMenuBar, QAction, QMessageBox, QStyleFactory, QScrollArea,
+    QGridLayout, QHBoxLayout, QSpinBox, QComboBox, QGroupBox, QFormLayout,
+    QDialog, QListWidget, QListWidgetItem, QProgressBar, QLineEdit
+)
+from PyQt5.QtGui import QIcon, QPalette, QColor, QPixmap
+from PyQt5.QtCore import Qt, QThread, pyqtSignal, QThreadPool
 
 from compression.image_compressor import compress_image
 from compression.pdf_compressor import compress_pdf
 from compression.ghostscript_compressor import compress_pdf_ghostscript
 from compression.pikepdf_optimizer import optimize_pdf_pikepdf
+from gui.preview_panel import PreviewPanel  # For future expansion
+from utils.compression_worker import CompressionWorker  # Reserved for async compression
+from utils.image_compression_task import simulate_image_compression  # Placeholder logic
 
 SUPPORTED_FORMATS = (".jpg", ".jpeg", ".png", ".pdf")
 
+
+# ─────────────────────────────
+# ConvertWorker for format dialog
+# ─────────────────────────────
 class ConvertWorker(QThread):
     progress = pyqtSignal(int)
     finished = pyqtSignal(str)
@@ -59,11 +66,17 @@ class ConvertWorker(QThread):
         except Exception as e:
             self.finished.emit(f"Error: {str(e)}")
 
+
+# ─────────────────────────────
+# Format Converter Dialog (Tools > Convert)
+# ─────────────────────────────
 class ImageFormatConverterDialog(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setWindowTitle("Convert Image Format")
         self.setMinimumSize(600, 400)
+        self.threads = []
+
         layout = QVBoxLayout(self)
 
         self.image_list = QListWidget()
@@ -87,10 +100,10 @@ class ImageFormatConverterDialog(QDialog):
         layout.addWidget(self.image_list)
         layout.addWidget(self.convert_btn)
 
-        self.threads = []
-
     def select_files(self):
-        files, _ = QFileDialog.getOpenFileNames(self, "Select Images", "", "Images (*.jpg *.jpeg *.png *.bmp *.ico *.webp *.tiff)")
+        files, _ = QFileDialog.getOpenFileNames(
+            self, "Select Images", "", "Images (*.jpg *.jpeg *.png *.bmp *.ico *.webp *.tiff)"
+        )
         for f in files:
             self.add_image_item(f)
 
@@ -117,15 +130,22 @@ class ImageFormatConverterDialog(QDialog):
             thread.start()
             self.threads.append(thread)
 
+
+# ─────────────────────────────
+# Main Application Window
+# ─────────────────────────────
 class PrometheusApp(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("Prometheus - File Compressor")
         self.setMinimumSize(900, 700)
         self.setAcceptDrops(True)
+
         self.theme = "light"
         self.preview_files = []
         self.preview_widgets = {}
+        self.progress_bars = {}
+        self.threadpool = QThreadPool()
 
         self.init_ui()
 
@@ -139,6 +159,7 @@ class PrometheusApp(QMainWindow):
         self.layout.setAlignment(Qt.AlignTop)
 
         self.drop_label = QLabel("\n\n⬇️  Drag & Drop files here  ⬇️\n\n")
+        self.drop_label.setAlignment(Qt.AlignCenter)
         self.drop_label.setStyleSheet("""
             QLabel {
                 border: 2px dashed #aaa;
@@ -147,7 +168,6 @@ class PrometheusApp(QMainWindow):
                 color: #666;
             }
         """)
-        self.drop_label.setAlignment(Qt.AlignCenter)
 
         self.button = QPushButton("📁 Choose Files...")
         self.button.setStyleSheet("padding: 10px 20px; font-size: 16px;")
@@ -157,30 +177,33 @@ class PrometheusApp(QMainWindow):
         self.compress_button.setStyleSheet("padding: 10px 20px; font-size: 16px;")
         self.compress_button.clicked.connect(self.compress_all_files)
 
+        # Compression Options
         self.options_group = QGroupBox("Compression Settings")
         options_layout = QFormLayout()
 
         self.quality_spin = QSpinBox()
         self.quality_spin.setRange(10, 100)
         self.quality_spin.setValue(85)
-        options_layout.addRow("Image Quality (%)", self.quality_spin)
 
         self.resize_spin = QSpinBox()
         self.resize_spin.setRange(10, 100)
         self.resize_spin.setValue(100)
-        options_layout.addRow("Resize Percent (For IMGs/PDFs)", self.resize_spin)
 
         self.dpi_spin = QSpinBox()
         self.dpi_spin.setRange(50, 300)
         self.dpi_spin.setValue(120)
-        options_layout.addRow("DPI (Only for PDF)", self.dpi_spin)
 
         self.pdf_engine = QComboBox()
         self.pdf_engine.addItems(["PyMuPDF", "Ghostscript", "pikepdf"])
+
+        options_layout.addRow("Image Quality (%)", self.quality_spin)
+        options_layout.addRow("Resize Percent (IMGs/PDFs)", self.resize_spin)
+        options_layout.addRow("DPI (for PDF only)", self.dpi_spin)
         options_layout.addRow("PDF Engine", self.pdf_engine)
 
         self.options_group.setLayout(options_layout)
 
+        # Scroll area for preview thumbnails
         self.scroll_area = QScrollArea()
         self.scroll_area.setWidgetResizable(True)
         self.preview_container = QWidget()
@@ -200,41 +223,26 @@ class PrometheusApp(QMainWindow):
         self.setMenuBar(menubar)
 
         file_menu = menubar.addMenu("File")
-        open_action = QAction("Open Files", self)
-        open_action.triggered.connect(self.open_file_dialog)
-        file_menu.addAction(open_action)
-
+        file_menu.addAction(QAction("Open Files", self, triggered=self.open_file_dialog))
         file_menu.addSeparator()
-        exit_action = QAction("Exit", self)
-        exit_action.triggered.connect(self.close)
-        file_menu.addAction(exit_action)
+        file_menu.addAction(QAction("Exit", self, triggered=self.close))
 
         theme_menu = menubar.addMenu("Theme")
-        toggle_theme = QAction("Dark/Light", self)
-        toggle_theme.triggered.connect(self.toggle_theme)
-        theme_menu.addAction(toggle_theme)
-
-        help_menu = menubar.addMenu("Help")
-        about_action = QAction("About", self)
-        about_action.triggered.connect(self.show_about)
-        help_menu.addAction(about_action)
+        theme_menu.addAction(QAction("Dark/Light", self, triggered=self.toggle_theme))
 
         tools_menu = menubar.addMenu("Tools")
-        image_convert_action = QAction("Convert Image Format", self)
-        image_convert_action.triggered.connect(self.open_converter_dialog)
-        tools_menu.addAction(image_convert_action)
+        tools_menu.addAction(QAction("Convert Image Format", self, triggered=self.open_converter_dialog))
+
+        help_menu = menubar.addMenu("Help")
+        help_menu.addAction(QAction("About", self, triggered=self.show_about))
 
     def open_converter_dialog(self):
         dialog = ImageFormatConverterDialog(self)
         dialog.exec()
 
-    # rest of the PrometheusApp logic remains unchanged
-
+    # Add, Remove, Drag, Preview logic
     def open_file_dialog(self):
-        files, _ = QFileDialog.getOpenFileNames(
-            self, "Select files", "",
-            "Images and PDFs (*.jpg *.jpeg *.png *.pdf)"
-        )
+        files, _ = QFileDialog.getOpenFileNames(self, "Select files", "", "Images and PDFs (*.jpg *.jpeg *.png *.pdf)")
         if files:
             self.handle_files(files)
 
@@ -269,6 +277,7 @@ class PrometheusApp(QMainWindow):
         else:
             pixmap = QPixmap(100, 100)
             pixmap.fill(Qt.gray)
+
         thumb = QLabel()
         thumb.setPixmap(pixmap)
         thumb.setAlignment(Qt.AlignCenter)
@@ -289,6 +298,7 @@ class PrometheusApp(QMainWindow):
         layout.addWidget(thumb)
         layout.addWidget(name)
 
+        container.setLayout(layout)
         self.preview_widgets[file_path] = container
 
     def refresh_preview_grid(self):
@@ -299,9 +309,7 @@ class PrometheusApp(QMainWindow):
 
         for i, file_path in enumerate(self.preview_files):
             widget = self.preview_widgets[file_path]
-            row = i // 4
-            col = i % 4
-            self.preview_layout.addWidget(widget, row, col)
+            self.preview_layout.addWidget(widget, i // 4, i % 4)
 
     def remove_preview(self, file_path):
         if file_path in self.preview_files:
@@ -322,23 +330,11 @@ class PrometheusApp(QMainWindow):
         engine = self.pdf_engine.currentText()
 
         for path in self.preview_files:
-            suggested_name = os.path.splitext(os.path.basename(path))[0] + "_compressed"
-            if path.lower().endswith((".jpg", ".jpeg")):
-                extension = ".jpg"
-            elif path.lower().endswith(".png"):
-                extension = ".png"
-            elif path.lower().endswith(".pdf"):
-                extension = ".pdf"
-            else:
-                continue
+            base = os.path.splitext(os.path.basename(path))[0]
+            ext = os.path.splitext(path)[1]
+            suggested = base + "_compressed" + ext
 
-            save_path, _ = QFileDialog.getSaveFileName(
-                self,
-                "Save Compressed File As",
-                suggested_name + extension,
-                f"*{extension}"
-            )
-
+            save_path, _ = QFileDialog.getSaveFileName(self, "Save Compressed File As", suggested, f"*{ext}")
             if not save_path:
                 continue
 
