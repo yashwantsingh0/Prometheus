@@ -1,4 +1,18 @@
-pillow==11.3.0
-pdf2image
-poppler-utils  # System dependency (Linux)
-PyMuPDF==1.26.3
+# Core GUI
+PyQt5==5.15.9
+
+# Image processing
+Pillow==11.3.0  # For image manipulation, resizing, and format conversion
+
+# PDF handling and preview
+PyMuPDF==1.26.3  # Lightweight PDF engine used for compression/preview
+pdf2image==1.16.3  # Converts PDF to image (used for previews)
+
+# Optional PDF compression engine
+pikepdf==7.2.0  # For optimizing PDFs (lossless, metadata removal, etc.)
+
+# Backend for pdf2image (Linux only)
+# Ensure poppler is installed on system (not via pip)
+# On Ubuntu/Debian: sudo apt install poppler-utils
+# On Arch: sudo pacman -S poppler
+# On macOS: brew install poppler
