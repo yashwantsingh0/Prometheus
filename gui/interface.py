@@ -1,6 +1,6 @@
 # ──────────────────────────────────────────────────────────────
 #  Prometheus File Compressor
-#  Version: 0.1.0
+#  Version: 0.2.0
 #  License: MIT (see LICENSE file for details)
 #
 #  Author: Yashwant Singh
@@ -8,7 +8,7 @@
 #
 #  Description:
 #      Compress JPG, PNG, and PDF files with full user control.
-#      Features drag & drop, save-as, image quality tuning, and PDF DPI reduction.
+#      Features drag & drop, save-as, image quality tuning, DPI reduction.
 #
 #  ⚠️ This file is part of the Prometheus Project.
 #     Do not remove or modify attribution headers in redistributed versions.
@@ -24,9 +24,12 @@ from PyQt5.QtWidgets import (
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QIcon, QPalette, QColor, QPixmap
 import os
+import traceback
 
 from compression.image_compressor import compress_image
 from compression.pdf_compressor import compress_pdf
+from compression.ghostscript_compressor import compress_pdf_ghostscript
+from compression.pikepdf_optimizer import optimize_pdf_pikepdf
 
 SUPPORTED_FORMATS = (".jpg", ".jpeg", ".png", ".pdf")
 
@@ -89,6 +92,10 @@ class PrometheusApp(QMainWindow):
         self.dpi_spin.setValue(120)
         options_layout.addRow("DPI (Only for PDF)", self.dpi_spin)
 
+        self.pdf_engine = QComboBox()
+        self.pdf_engine.addItems(["PyMuPDF", "Ghostscript", "pikepdf"])
+        options_layout.addRow("PDF Engine", self.pdf_engine)
+
         self.options_group.setLayout(options_layout)
 
         self.scroll_area = QScrollArea()
@@ -124,10 +131,13 @@ class PrometheusApp(QMainWindow):
         toggle_theme.triggered.connect(self.toggle_theme)
         theme_menu.addAction(toggle_theme)
 
-        about_menu = menubar.addMenu("Help")
+        help_menu = menubar.addMenu("Help")
         about_action = QAction("About", self)
         about_action.triggered.connect(self.show_about)
-        about_menu.addAction(about_action)
+        help_menu.addAction(about_action)
+
+        tools_menu = menubar.addMenu("Tools")
+        tools_menu.addAction(QAction("Image Converter (Coming Soon)", self))
 
     def open_file_dialog(self):
         files, _ = QFileDialog.getOpenFileNames(
@@ -210,7 +220,6 @@ class PrometheusApp(QMainWindow):
             widget.setParent(None)
         self.refresh_preview_grid()
 
-
     def compress_all_files(self):
         if not self.preview_files:
             QMessageBox.information(self, "No files", "Please add files to compress.")
@@ -219,17 +228,11 @@ class PrometheusApp(QMainWindow):
         quality = self.quality_spin.value()
         resize = self.resize_spin.value()
         dpi = self.dpi_spin.value()
+        engine = self.pdf_engine.currentText()
 
         for path in self.preview_files:
             suggested_name = os.path.splitext(os.path.basename(path))[0] + "_compressed"
-            if path.lower().endswith((".jpg", ".jpeg")):
-                extension = ".jpg"
-            elif path.lower().endswith(".png"):
-                extension = ".png"
-            elif path.lower().endswith(".pdf"):
-                extension = ".pdf"
-            else:
-                continue
+            extension = ".pdf" if path.lower().endswith(".pdf") else os.path.splitext(path)[1]
 
             save_path, _ = QFileDialog.getSaveFileName(
                 self,
@@ -245,7 +248,12 @@ class PrometheusApp(QMainWindow):
                 if path.lower().endswith((".jpg", ".jpeg", ".png")):
                     compressed = compress_image(path, output_path=save_path, quality=quality, resize_percent=resize)
                 elif path.lower().endswith(".pdf"):
-                    compressed = compress_pdf(path, output_path=save_path, dpi=dpi)
+                    if engine == "PyMuPDF":
+                        compressed = compress_pdf(path, output_path=save_path, dpi=dpi)
+                    elif engine == "Ghostscript":
+                        compressed = compress_pdf_ghostscript(path, output_path=save_path)
+                    elif engine == "pikepdf":
+                        compressed = optimize_pdf_pikepdf(path, output_path=save_path)
 
                 if compressed:
                     print(f"Compressed and saved: {compressed}")
@@ -253,12 +261,11 @@ class PrometheusApp(QMainWindow):
                     raise Exception("Compression returned None")
 
             except Exception as e:
-                print(f"PDF compression failed: {e}")
+                print(f"Compression failed: {e}")
                 traceback.print_exc()
                 QMessageBox.critical(self, "Compression Error", f"Failed to compress file:\n{path}\n\n{str(e)}")
 
         QMessageBox.information(self, "Done", "Compression completed.")
-
 
     def toggle_theme(self):
         self.theme = "dark" if self.theme == "light" else "light"
@@ -285,8 +292,8 @@ class PrometheusApp(QMainWindow):
             "User-driven file size optimization for Linux desktops.<br>"
             "Built with Python 3.13, PyQt5, and the following technologies:<br><br>"
             "<ul>"
-            "<li><b>Image Compression:</b> Pillow (resize, quality, DPI)</li>"
-            "<li><b>PDF Compression:</b> PyMuPDF (rasterize pages to images)</li>"
+            "<li><b>Image Compression:</b> Pillow (resize, quality)</li>"
+            "<li><b>PDF Compression:</b> PyMuPDF, Ghostscript, pikepdf</li>"
             "<li><b>GUI Framework:</b> PyQt5 (cross-platform native look)</li>"
             "<li><b>File I/O:</b> Drag & drop, batch handling</li>"
             "<li><b>Theming:</b> Dark/Light switch with Fusion palette</li>"
@@ -301,5 +308,3 @@ class PrometheusApp(QMainWindow):
         msg.setTextInteractionFlags(Qt.TextInteractionFlag.TextBrowserInteraction)
         msg.setIcon(QMessageBox.Icon.Information)
         msg.exec()
-
-

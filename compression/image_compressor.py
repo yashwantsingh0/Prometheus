@@ -61,3 +61,37 @@ def compress_image(
     except Exception as e:
         print(f"Image compression failed: {e}")
         return None
+
+
+
+from PIL import Image
+import os
+
+def compress_webp(input_path, output_path=None, quality=80, lossless=False):
+    """
+    Compress a WebP image.
+    
+    Parameters:
+        input_path (str): Path to the input .webp image
+        output_path (str): Optional; path to save the compressed image
+        quality (int): Quality level (0-100)
+        lossless (bool): Use lossless compression if True
+        
+    Returns:
+        output_path (str): Path to the saved compressed image
+    """
+    try:
+        with Image.open(input_path) as img:
+            # Ensure RGB or RGBA
+            img = img.convert("RGBA") if img.mode in ("RGBA", "P") else img.convert("RGB")
+            
+            if not output_path:
+                filename = os.path.splitext(os.path.basename(input_path))[0]
+                output_path = os.path.join(os.path.dirname(input_path), f"{filename}_compressed.webp")
+            
+            img.save(output_path, format="WEBP", quality=quality, lossless=lossless)
+            print(f"Compressed: {input_path} -> {output_path} ({quality}%)")
+            return output_path
+    except Exception as e:
+        print(f"Error compressing {input_path}: {e}")
+        return None
