@@ -19,12 +19,14 @@ from PyQt5.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QLabel, QPushButton,
     QFileDialog, QMenuBar, QAction, QMessageBox, QStyleFactory,
     QApplication, QScrollArea, QGridLayout, QHBoxLayout, QSpinBox,
-    QComboBox, QGroupBox, QFormLayout
+    QComboBox, QGroupBox, QFormLayout, QDialog, QLineEdit, QListWidget,
+    QListWidgetItem, QProgressBar
 )
-from PyQt5.QtCore import Qt
+from PyQt5.QtCore import Qt, QThread, pyqtSignal
 from PyQt5.QtGui import QIcon, QPalette, QColor, QPixmap
 import os
 import traceback
+from PIL import Image
 
 from compression.image_compressor import compress_image
 from compression.pdf_compressor import compress_pdf
@@ -32,6 +34,88 @@ from compression.ghostscript_compressor import compress_pdf_ghostscript
 from compression.pikepdf_optimizer import optimize_pdf_pikepdf
 
 SUPPORTED_FORMATS = (".jpg", ".jpeg", ".png", ".pdf")
+
+class ConvertWorker(QThread):
+    progress = pyqtSignal(int)
+    finished = pyqtSignal(str)
+
+    def __init__(self, source_path, target_ext, output_path):
+        super().__init__()
+        self.source_path = source_path
+        self.target_ext = target_ext
+        self.output_path = output_path
+
+    def run(self):
+        try:
+            img = Image.open(self.source_path)
+            if self.target_ext == ".ico":
+                if img.size[0] < 256 or img.size[1] < 256:
+                    img = img.resize((256, 256))
+                img.save(self.output_path, format="ICO", sizes=[(256, 256)])
+            else:
+                img.save(self.output_path)
+            self.progress.emit(100)
+            self.finished.emit(self.output_path)
+        except Exception as e:
+            self.finished.emit(f"Error: {str(e)}")
+
+class ImageFormatConverterDialog(QDialog):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("Convert Image Format")
+        self.setMinimumSize(600, 400)
+        layout = QVBoxLayout(self)
+
+        self.image_list = QListWidget()
+        self.image_list.setAcceptDrops(True)
+        self.image_list.setDragDropMode(QListWidget.DropOnly)
+        self.image_list.viewport().setAcceptDrops(True)
+        self.image_list.setSpacing(5)
+
+        self.select_button = QPushButton("Add Images")
+        self.select_button.clicked.connect(self.select_files)
+
+        self.output_format = QComboBox()
+        self.output_format.addItems([".jpg", ".png", ".jpeg", ".bmp", ".ico", ".webp"])
+
+        self.convert_btn = QPushButton("Convert All")
+        self.convert_btn.clicked.connect(self.start_conversion)
+
+        layout.addWidget(self.select_button)
+        layout.addWidget(QLabel("Target Format:"))
+        layout.addWidget(self.output_format)
+        layout.addWidget(self.image_list)
+        layout.addWidget(self.convert_btn)
+
+        self.threads = []
+
+    def select_files(self):
+        files, _ = QFileDialog.getOpenFileNames(self, "Select Images", "", "Images (*.jpg *.jpeg *.png *.bmp *.ico *.webp *.tiff)")
+        for f in files:
+            self.add_image_item(f)
+
+    def add_image_item(self, path):
+        item = QListWidgetItem(os.path.basename(path))
+        item.setData(Qt.UserRole, path)
+        progress = QProgressBar()
+        progress.setValue(0)
+        self.image_list.addItem(item)
+        self.image_list.setItemWidget(item, progress)
+
+    def start_conversion(self):
+        target_ext = self.output_format.currentText()
+        for i in range(self.image_list.count()):
+            item = self.image_list.item(i)
+            source_path = item.data(Qt.UserRole)
+            base, _ = os.path.splitext(source_path)
+            output_path = base + target_ext
+            bar = self.image_list.itemWidget(item)
+
+            thread = ConvertWorker(source_path, target_ext, output_path)
+            thread.progress.connect(bar.setValue)
+            thread.finished.connect(lambda msg, b=bar: b.setFormat(msg))
+            thread.start()
+            self.threads.append(thread)
 
 class PrometheusApp(QMainWindow):
     def __init__(self):
@@ -73,7 +157,6 @@ class PrometheusApp(QMainWindow):
         self.compress_button.setStyleSheet("padding: 10px 20px; font-size: 16px;")
         self.compress_button.clicked.connect(self.compress_all_files)
 
-        # Compression options UI
         self.options_group = QGroupBox("Compression Settings")
         options_layout = QFormLayout()
 
@@ -137,7 +220,15 @@ class PrometheusApp(QMainWindow):
         help_menu.addAction(about_action)
 
         tools_menu = menubar.addMenu("Tools")
-        tools_menu.addAction(QAction("Image Converter (Coming Soon)", self))
+        image_convert_action = QAction("Convert Image Format", self)
+        image_convert_action.triggered.connect(self.open_converter_dialog)
+        tools_menu.addAction(image_convert_action)
+
+    def open_converter_dialog(self):
+        dialog = ImageFormatConverterDialog(self)
+        dialog.exec()
+
+    # rest of the PrometheusApp logic remains unchanged
 
     def open_file_dialog(self):
         files, _ = QFileDialog.getOpenFileNames(
@@ -232,7 +323,14 @@ class PrometheusApp(QMainWindow):
 
         for path in self.preview_files:
             suggested_name = os.path.splitext(os.path.basename(path))[0] + "_compressed"
-            extension = ".pdf" if path.lower().endswith(".pdf") else os.path.splitext(path)[1]
+            if path.lower().endswith((".jpg", ".jpeg")):
+                extension = ".jpg"
+            elif path.lower().endswith(".png"):
+                extension = ".png"
+            elif path.lower().endswith(".pdf"):
+                extension = ".pdf"
+            else:
+                continue
 
             save_path, _ = QFileDialog.getSaveFileName(
                 self,
