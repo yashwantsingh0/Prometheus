@@ -1,21 +1,5 @@
 # ──────────────────────────────────────────────────────────────
 #  Prometheus File Compressor
-#  Version: 0.1.0
-#  License: MIT (see LICENSE file for details)
-#
-#  Author: Yashwant Singh
-#  GitHub: https://github.com/yashwantsingh0/Prometheus
-#
-#  Description:
-#      Compress JPG, PNG, and PDF files with full user control.
-#      Features drag & drop, save-as, image quality tuning, and PDF DPI reduction.
-#
-#  ⚠️ This file is part of the Prometheus Project.
-#     Do not remove or modify attribution headers in redistributed versions.
-# ──────────────────────────────────────────────────────────────
-
-# ──────────────────────────────────────────────────────────────
-#  Prometheus File Compressor
 #  Version: 0.2.0
 #  License: MIT (see LICENSE file for details)
 #
@@ -91,6 +75,7 @@ class ImageFormatConverterDialog(QDialog):
         super().__init__(parent)
         self.setWindowTitle("Convert Image Format")
         self.setMinimumSize(600, 400)
+        self.setStyleSheet("background-color: #2e2e2e; color: #e0e0e0;")
         self.threads = []
 
         layout = QVBoxLayout(self)
@@ -100,21 +85,47 @@ class ImageFormatConverterDialog(QDialog):
         self.image_list.setDragDropMode(QListWidget.DropOnly)
         self.image_list.viewport().setAcceptDrops(True)
         self.image_list.setSpacing(5)
+        self.image_list.setStyleSheet("background-color: #3a3a3a; border: 1px solid #444;")
 
         self.select_button = QPushButton("Add Images")
+        self.select_button.setStyleSheet("""
+            QPushButton {
+                background-color: #4a90e2;
+                color: white;
+                border: none;
+                padding: 10px 20px;
+                border-radius: 5px;
+            }
+            QPushButton:hover {
+                background-color: #357abd;
+            }
+        """)
         self.select_button.clicked.connect(self.select_files)
 
         self.output_format = QComboBox()
         self.output_format.addItems([".jpg", ".png", ".jpeg", ".bmp", ".ico", ".webp"])
+        self.output_format.setStyleSheet("background-color: #3a3a3a; color: #e0e0e0; border: 1px solid #444; padding: 5px;")
 
         self.convert_btn = QPushButton("Convert All")
+        self.convert_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #4a90e2;
+                color: white;
+                border: none;
+                padding: 10px 20px;
+                border-radius: 5px;
+            }
+            QPushButton:hover {
+                background-color: #357abd;
+            }
+        """)
         self.convert_btn.clicked.connect(self.start_conversion)
 
         layout.addWidget(self.select_button)
         layout.addWidget(QLabel("Target Format:"))
         layout.addWidget(self.output_format)
         layout.addWidget(self.image_list)
-        layout.addWidget(self.convert_btn)
+        layout.addWidget(self.convert_btn, alignment=Qt.AlignCenter)
 
     def select_files(self):
         files, _ = QFileDialog.getOpenFileNames(
@@ -127,6 +138,7 @@ class ImageFormatConverterDialog(QDialog):
         item = QListWidgetItem(os.path.basename(path))
         item.setData(Qt.UserRole, path)
         progress = QProgressBar()
+        progress.setStyleSheet("background-color: #2e2e2e; border: 1px solid #444; color: #e0e0e0;")
         progress.setValue(0)
         self.image_list.addItem(item)
         self.image_list.setItemWidget(item, progress)
@@ -157,7 +169,7 @@ class PrometheusApp(QMainWindow):
         self.setMinimumSize(900, 700)
         self.setAcceptDrops(True)
 
-        self.theme = "light"
+        self.theme = "dark"
         self.preview_files = []
         self.preview_widgets = {}
         self.progress_bars = {}
@@ -178,39 +190,63 @@ class PrometheusApp(QMainWindow):
         self.drop_label.setAlignment(Qt.AlignCenter)
         self.drop_label.setStyleSheet("""
             QLabel {
-                border: 2px dashed #aaa;
-                padding: 40px;
-                font-size: 18px;
-                color: #666;
+                border: 2px dashed #4a90e2;
+                padding: 50px;
+                font-size: 28px;
+                color: #4a90e2;
+                background-color: #2e2e2e;
+                border-radius: 10px;
             }
         """)
 
+        btn_style = """
+            QPushButton {
+                background-color: #4a90e2;
+                color: white;
+                border: none;
+                padding: 12px 24px;
+                font-size: 16px;
+                border-radius: 5px;
+            }
+            QPushButton:hover {
+                background-color: #357abd;
+            }
+            QPushButton:pressed {
+                background-color: #2e6da4;
+            }
+        """
+
         self.button = QPushButton("📁 Choose Files...")
-        self.button.setStyleSheet("padding: 10px 20px; font-size: 16px;")
+        self.button.setStyleSheet(btn_style)
         self.button.clicked.connect(self.open_file_dialog)
 
         self.compress_button = QPushButton("🔧 Compress All")
-        self.compress_button.setStyleSheet("padding: 10px 20px; font-size: 16px;")
+        self.compress_button.setStyleSheet(btn_style)
         self.compress_button.clicked.connect(self.compress_all_files)
 
         # Compression Options
         self.options_group = QGroupBox("Compression Settings")
+        self.options_group.setStyleSheet("background-color: #3a3a3a; border: 1px solid #444; padding: 10px; color: #e0e0e0;")
         options_layout = QFormLayout()
 
         self.quality_spin = QSpinBox()
         self.quality_spin.setRange(10, 100)
         self.quality_spin.setValue(85)
+        self.quality_spin.setStyleSheet("background-color: #2e2e2e; color: #e0e0e0; border: 1px solid #444; padding: 5px;")
 
         self.resize_spin = QSpinBox()
         self.resize_spin.setRange(10, 100)
         self.resize_spin.setValue(100)
+        self.resize_spin.setStyleSheet("background-color: #2e2e2e; color: #e0e0e0; border: 1px solid #444; padding: 5px;")
 
         self.dpi_spin = QSpinBox()
         self.dpi_spin.setRange(50, 300)
         self.dpi_spin.setValue(120)
+        self.dpi_spin.setStyleSheet("background-color: #2e2e2e; color: #e0e0e0; border: 1px solid #444; padding: 5px;")
 
         self.pdf_engine = QComboBox()
         self.pdf_engine.addItems(["PyMuPDF", "Ghostscript", "pikepdf"])
+        self.pdf_engine.setStyleSheet("background-color: #2e2e2e; color: #e0e0e0; border: 1px solid #444; padding: 5px;")
 
         options_layout.addRow("Image Quality (%)", self.quality_spin)
         options_layout.addRow("Resize Percent (IMGs/PDFs)", self.resize_spin)
@@ -222,14 +258,15 @@ class PrometheusApp(QMainWindow):
         # Scroll area for preview thumbnails
         self.scroll_area = QScrollArea()
         self.scroll_area.setWidgetResizable(True)
+        self.scroll_area.setStyleSheet("background-color: #2e2e2e; border: 1px solid #444;")
         self.preview_container = QWidget()
         self.preview_layout = QGridLayout(self.preview_container)
         self.scroll_area.setWidget(self.preview_container)
 
         self.layout.addWidget(self.drop_label)
-        self.layout.addWidget(self.button)
+        self.layout.addWidget(self.button, alignment=Qt.AlignCenter)
         self.layout.addWidget(self.options_group)
-        self.layout.addWidget(self.compress_button)
+        self.layout.addWidget(self.compress_button, alignment=Qt.AlignCenter)
         self.layout.addWidget(self.scroll_area)
 
         self.apply_theme()
@@ -237,6 +274,36 @@ class PrometheusApp(QMainWindow):
     def create_menu(self):
         menubar = QMenuBar(self)
         self.setMenuBar(menubar)
+
+        menubar.setStyleSheet("""
+            QMenuBar {
+                background: qlineargradient(
+                    x1:0, y1:0, x2:0, y2:1,
+                    stop:0 #2e2e2e,
+                    stop:1 #3a3a3a
+                );
+                color: #e0e0e0;
+                font-size: 14px;
+            }
+            QMenuBar::item {
+                background: transparent;
+                padding: 8px 15px;
+                margin: 0px 2px;
+            }
+            QMenuBar::item:selected {
+                background: #4a90e2;
+                color: white;
+            }
+            QMenu {
+                background-color: #2e2e2e;
+                color: #e0e0e0;
+                font-size: 14px;
+            }
+            QMenu::item:selected {
+                background-color: #4a90e2;
+                color: white;
+            }
+        """)
 
         file_menu = menubar.addMenu("File")
         file_menu.addAction(QAction("Open Files", self, triggered=self.open_file_dialog))
@@ -251,6 +318,7 @@ class PrometheusApp(QMainWindow):
 
         help_menu = menubar.addMenu("Help")
         help_menu.addAction(QAction("About", self, triggered=self.show_about))
+
 
     def open_converter_dialog(self):
         dialog = ImageFormatConverterDialog(self)
@@ -297,13 +365,29 @@ class PrometheusApp(QMainWindow):
         thumb = QLabel()
         thumb.setPixmap(pixmap)
         thumb.setAlignment(Qt.AlignCenter)
+        thumb.setStyleSheet("border: 1px solid #444; border-radius: 5px;")
 
         name = QLabel(base_name)
         name.setAlignment(Qt.AlignCenter)
         name.setWordWrap(True)
+        name.setStyleSheet("color: #e0e0e0;")
 
         remove_btn = QPushButton("🗑️")
         remove_btn.setFixedSize(28, 28)
+        remove_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #e74c3c;
+                color: white;
+                border: none;
+                border-radius: 5px;
+            }
+            QPushButton:hover {
+                background-color: #c0392b;
+            }
+            QPushButton:pressed {
+                background-color: #a93226;
+            }
+        """)
         remove_btn.clicked.connect(lambda: self.remove_preview(file_path))
 
         btn_layout = QHBoxLayout()
@@ -384,12 +468,14 @@ class PrometheusApp(QMainWindow):
     def apply_theme(self):
         if self.theme == "dark":
             palette = QPalette()
-            palette.setColor(QPalette.Window, QColor(45, 45, 45))
+            palette.setColor(QPalette.Window, QColor(46, 46, 46))
             palette.setColor(QPalette.WindowText, Qt.white)
-            palette.setColor(QPalette.Base, QColor(25, 25, 25))
+            palette.setColor(QPalette.Base, QColor(58, 58, 58))
             palette.setColor(QPalette.Text, Qt.white)
-            palette.setColor(QPalette.Button, QColor(60, 60, 60))
+            palette.setColor(QPalette.Button, QColor(74, 144, 226))
             palette.setColor(QPalette.ButtonText, Qt.white)
+            palette.setColor(QPalette.Highlight, QColor(74, 144, 226))
+            palette.setColor(QPalette.HighlightedText, Qt.black)
             self.setPalette(palette)
             self.setStyle(QStyleFactory.create("Fusion"))
         else:
